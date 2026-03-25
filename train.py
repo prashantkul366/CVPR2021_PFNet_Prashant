@@ -22,7 +22,7 @@ from torchvision import transforms
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-# import joint_transforms
+import joint_transforms
 from config import cod_training_root
 from config import cod_val_root
 from config import backbone_path
@@ -67,20 +67,20 @@ log_path = os.path.join(ckpt_path, exp_name, str(datetime.datetime.now()) + '.tx
 writer = SummaryWriter(log_dir=vis_path, comment=exp_name)
 
 # Transform Data.
-# joint_transform = joint_transforms.Compose([
-#     joint_transforms.RandomHorizontallyFlip(),
-#     joint_transforms.Resize((args['scale'], args['scale']))
-# ])
-# img_transform = transforms.Compose([
-#     transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-#     transforms.ToTensor(),
-#     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-# ])
-# target_transform = transforms.ToTensor()
+joint_transform = joint_transforms.Compose([
+    joint_transforms.RandomHorizontallyFlip(),
+    joint_transforms.Resize((args['scale'], args['scale']))
+])
+img_transform = transforms.Compose([
+    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+target_transform = transforms.ToTensor()
 
 # Prepare Data Set.
-# train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
-train_set = ImageFolder(cod_training_root)
+train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
+# train_set = ImageFolder(cod_training_root)
 val_set   = ImageFolder(cod_val_root)
 
 print("Train set size:", len(train_set))

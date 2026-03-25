@@ -22,7 +22,8 @@ def make_dataset(root):
     mask_path = os.path.join(root, 'masks')
     # img_list = [os.path.splitext(f)[0] for f in os.listdir(image_path) if f.endswith('.jpg')]
     # return [(os.path.join(image_path, img_name + '.jpg'), os.path.join(mask_path, img_name + '.png')) for img_name in img_list]
-    img_list = [f for f in os.listdir(image_path) if f.endswith('.npy')]
+    # img_list = [f for f in os.listdir(image_path) if f.endswith('.npy')]
+    img_list = sorted([f for f in os.listdir(image_path) if f.endswith('.npy')])
 
     return [(os.path.join(image_path, f),
             os.path.join(mask_path, f)) for f in img_list]
@@ -36,27 +37,43 @@ class ImageFolder(data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
 
+    # def __getitem__(self, index):
+    #     img_path, gt_path = self.imgs[index]
+    #     # img = Image.open(img_path).convert('RGB')
+    #     # target = Image.open(gt_path).convert('L')
+    #     img = np.load(img_path)      # (H,W,4)
+        
+    #     target = np.load(gt_path)    # (H,W)
+
+    #     # if self.joint_transform is not None:
+    #     #     img, target = self.joint_transform(img, target)
+    #     # if self.transform is not None:
+    #     #     img = self.transform(img)
+    #     # if self.target_transform is not None:
+    #     #     target = self.target_transform(target)
+
+    #     # return img, target
+    #     # to tensor
+    #     img = torch.from_numpy(img).float()
+    #     img = img.permute(1, 0, 2) 
+
+    #     target = torch.from_numpy(target).float()
+    #     target = target.unsqueeze(0) # -> 1 H W
+
+    #     return img, target
     def __getitem__(self, index):
+
         img_path, gt_path = self.imgs[index]
-        # img = Image.open(img_path).convert('RGB')
-        # target = Image.open(gt_path).convert('L')
+
         img = np.load(img_path)      # (H,W,4)
         target = np.load(gt_path)    # (H,W)
 
-        # if self.joint_transform is not None:
-        #     img, target = self.joint_transform(img, target)
-        # if self.transform is not None:
-        #     img = self.transform(img)
-        # if self.target_transform is not None:
-        #     target = self.target_transform(target)
-
-        # return img, target
-        # to tensor
         img = torch.from_numpy(img).float()
-        img = img.permute(2, 0, 1)   # -> 4 H W
+        img = img.permute(2, 0, 1)   # ⭐ FIX CHANNEL ORDER
 
         target = torch.from_numpy(target).float()
-        target = target.unsqueeze(0) # -> 1 H W
+        target = (target > 0).float()   # ⭐ BINARIZE
+        target = target.unsqueeze(0)
 
         return img, target
 

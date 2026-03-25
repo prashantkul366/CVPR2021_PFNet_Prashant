@@ -64,12 +64,33 @@ class ImageFolder(data.Dataset):
     def __getitem__(self, index):
 
         img_path, gt_path = self.imgs[index]
-
-        img = np.load(img_path)      # (H,W,4)
-        target = np.load(gt_path)    # (H,W)
+        
+        img = np.load(img_path)
 
         img = torch.from_numpy(img).float()
-        img = img.permute(2, 0, 1)   # ⭐ FIX CHANNEL ORDER
+
+        # ===== FIX CHANNEL POSITION =====
+        if img.shape[0] == 4:
+            # already C H W
+            pass
+        elif img.shape[1] == 4:
+            # H C W → C H W
+            img = img.permute(1, 0, 2)
+        elif img.shape[2] == 4:
+            # H W C → C H W
+            img = img.permute(2, 0, 1)
+        else:
+            raise ValueError(f"Unknown image shape {img.shape}")
+
+        # ===== NORMALIZE =====
+        for c in range(img.shape[0]):
+            img[c] = (img[c] - img[c].mean()) / (img[c].std() + 1e-6)
+            
+        # img = np.load(img_path)      # (H,W,4)
+        target = np.load(gt_path)    # (H,W)
+
+        # img = torch.from_numpy(img).float()
+        # img = img.permute(2, 0, 1)   
 
         target = torch.from_numpy(target).float()
         target = (target > 0).float()   # ⭐ BINARIZE

@@ -229,6 +229,30 @@ class PFNet(nn.Module):
 
         # backbone
         resnet50 = resnet.resnet50(backbone_path)
+
+        # ===== MODIFY FIRST CONV TO 4 CHANNEL =====
+        old_conv = resnet50.conv1
+
+        new_conv = nn.Conv2d(
+            in_channels=4,
+            out_channels=64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
+
+        with torch.no_grad():
+            # copy pretrained RGB weights
+            new_conv.weight[:, :3] = old_conv.weight
+
+            # initialize 4th channel as mean of RGB
+            new_conv.weight[:, 3] = old_conv.weight.mean(dim=1)
+
+        resnet50.conv1 = new_conv
+        # ==========================================
+
+        # self.layer0 = nn.Sequential(resnet50.conv1, resnet50.bn1, resnet50.relu)
         self.layer0 = nn.Sequential(resnet50.conv1, resnet50.bn1, resnet50.relu)
         self.layer1 = nn.Sequential(resnet50.maxpool, resnet50.layer1)
         self.layer2 = resnet50.layer2
@@ -286,3 +310,13 @@ class PFNet(nn.Module):
 
         return torch.sigmoid(predict4), torch.sigmoid(predict3), torch.sigmoid(predict2), torch.sigmoid(
             predict1)
+    
+
+
+if __name__ == '__main__':
+    backbone_path = './backbone/resnet/resnet50-19c8e357.pth'
+    net = PFNet(backbone_path)
+    print(net)
+    x = torch.randn(2, 4, 256, 256) 
+    predict4, predict3, predict2, predict1 = net(x)
+    print(predict4.size(), predict3.size(), predict2.size(), predict1.size())

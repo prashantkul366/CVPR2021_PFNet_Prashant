@@ -42,8 +42,8 @@ ckpt_path = './ckpt'
 exp_name = 'PFNet'
 
 args = {
-    'epoch_num': 45,
-    'train_batch_size': 16,
+    'epoch_num': 1000,
+    'train_batch_size': 8,
     'last_epoch': 0,
     'lr': 1e-3,
     'lr_decay': 0.9,
@@ -137,10 +137,7 @@ def main():
     print(exp_name)
 
     net = PFNet(backbone_path).cuda(device_ids[0]).train()
-    print("\n===== MODEL INFO =====")
-    print("First conv weight shape:",
-        net.resnet.conv1.weight.shape)
-    print("======================\n")
+    
 
     if args['optimizer'] == 'Adam':
         print("Adam")
@@ -166,6 +163,10 @@ def main():
         print(total_epoch)
 
     net = nn.DataParallel(net, device_ids=device_ids)
+    print("\n===== MODEL INFO =====")
+    print("Model first layer:", net.module.layer0[0].weight.shape)
+    print("======================\n")
+    
     print("Using {} GPU(s) to Train.".format(len(device_ids)))
 
     open(log_path, 'w').write(str(args) + '\n\n')

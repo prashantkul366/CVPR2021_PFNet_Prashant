@@ -92,6 +92,10 @@ print("Val set size:", len(val_set))
 
 img, mask = train_set[0]
 
+print("Image dtype:", img.dtype)
+print("Mask dtype :", mask.dtype)
+print("Mask sum   :", mask.sum().item())
+
 print("\n==== FINAL SANITY ====")
 print("IMG:", img.shape, img.min().item(), img.max().item())
 print("MASK:", mask.shape, torch.unique(mask))
@@ -116,6 +120,10 @@ print("============================\n")
 x, y = next(iter(train_loader))
 print("Batch image shape :", x.shape)
 print("Batch mask shape  :", y.shape)
+
+print("Batch min/max:", x.min().item(), x.max().item())
+print("Batch mask sum:", y.sum().item())
+
 total_epoch = args['epoch_num'] * len(train_loader)
 
 # loss function
@@ -149,6 +157,15 @@ def main():
 
     net = PFNet(backbone_path).cuda(device_ids[0]).train()
     
+    print("\n===== MODEL SANITY =====")
+    # dummy = torch.randn(1, 4, 416, 416).cuda()
+    # out = net.module(dummy) if isinstance(net, nn.DataParallel) else net(dummy)
+    dummy = torch.randn(1, 4, 416, 416).cuda()
+    out = net(dummy)   # no module here
+
+    for i, o in enumerate(out):
+        print(f"Output {i} shape:", o.shape, "min:", o.min().item(), "max:", o.max().item())
+    print("========================\n")
 
     if args['optimizer'] == 'Adam':
         print("Adam")
@@ -167,11 +184,33 @@ def main():
              'lr': 1 * args['lr'], 'weight_decay': args['weight_decay']}
         ], momentum=args['momentum'])
 
-    if len(args['snapshot']) > 0:
-        print('Training Resumes From \'%s\'' % args['snapshot'])
-        net.load_state_dict(torch.load(os.path.join(ckpt_path, exp_name, args['snapshot'] + '.pth')))
-        total_epoch = (args['epoch_num'] - int(args['snapshot'])) * len(train_loader)
-        print(total_epoch)
+    # if len(args['snapshot']) > 0:
+    #     print('Training Resumes From \'%s\'' % args['snapshot'])
+    #     net.load_state_dict(torch.load(os.path.join(ckpt_path, exp_name, args['snapshot'] + '.pth')))
+    #     total_epoch = (args['epoch_num'] - int(args['snapshot'])) * len(train_loader)
+    #     print(total_epoch)
+    start_epoch = 1
+
+    best_dice = 0
+    best_epoch = 0
+    early_stop_patience = 50
+    early_stop_count = 0
+
+    if args['snapshot']:
+        print(f"🔁 Resuming from {args['snapshot']}")
+
+        checkpoint = torch.load(os.path.join(ckpt_path, exp_name, args['snapshot']))
+
+        net.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        start_epoch = checkpoint['epoch'] + 1
+        best_dice = checkpoint['best_dice']
+        best_epoch = checkpoint['best_epoch']
+        early_stop_count = checkpoint.get('early_stop_counter', 0)
+
+        print(f"Resume Epoch: {start_epoch}")
+        print(f"Best Dice: {best_dice:.4f}")
 
     net = nn.DataParallel(net, device_ids=device_ids)
     print("\n===== MODEL INFO =====")
@@ -186,20 +225,24 @@ def main():
     # best_epoch = 0
     # early_stop_patience = 50
     # train(net, optimizer)
-    best_dice = 0
-    best_epoch = 0
-    early_stop_patience = 50
+    # best_dice = 0
+    # best_epoch = 0
+    # early_stop_patience = 50
 
-    train(net, optimizer, best_dice, best_epoch, early_stop_patience)
+    # train(net, optimizer, best_dice, best_epoch, early_stop_patience)
+    # train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoch)
+    train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoch, early_stop_count)
     writer.close()
 
 # def train(net, optimizer):
-def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
+# def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
+def train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoch):
     curr_iter = 1
     start_time = time.time()
     early_stop_count = 0  
 
-    for epoch in range(args['last_epoch'] + 1, args['last_epoch'] + 1 + args['epoch_num']):
+    # for epoch in range(args['last_epoch'] + 1, args['last_epoch'] + 1 + args['epoch_num']):
+    for epoch in range(start_epoch, args['epoch_num'] + 1):
         loss_record, loss_1_record, loss_2_record, loss_3_record, loss_4_record = AvgMeter(), AvgMeter(), AvgMeter(), AvgMeter(), AvgMeter()
 
         train_iterator = tqdm(train_loader, total=len(train_loader))
@@ -295,15 +338,26 @@ def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
         f1 = 2*precision*recall/(precision+recall+1e-7)
         iou = TP/(TP+FP+FN+1e-7)
 
-        print(f"\nVAL Dice: {val_dice_epoch:.4f}")
-        print(f"Sens:{sensitivity:.4f} Spec:{specificity:.4f} Acc:{accuracy:.4f}")
-        print(f"Prec:{precision:.4f} Recall:{recall:.4f} F1:{f1:.4f} IoU:{iou:.4f}")
+        # print(f"\nVAL Dice: {val_dice_epoch:.4f}")
+        # print(f"Sens:{sensitivity:.4f} Spec:{specificity:.4f} Acc:{accuracy:.4f}")
+        # print(f"Prec:{precision:.4f} Recall:{recall:.4f} F1:{f1:.4f} IoU:{iou:.4f}")
+        print("\n===== VALIDATION METRICS =====")
+        print(f"Dice        : {val_dice_epoch:.4f}")
+        print(f"Sensitivity : {sensitivity:.4f}")
+        print(f"Specificity : {specificity:.4f}")
+        print(f"Accuracy    : {accuracy:.4f}")
+        print(f"Precision   : {precision:.4f}")
+        print(f"Recall      : {recall:.4f}")
+        print(f"F1 Score    : {f1:.4f}")
+        print(f"IoU         : {iou:.4f}")
+        print("==============================")
         
         net.train()
 
         if val_dice_epoch > best_dice:
 
             print(" BEST MODEL UPDATED")
+            print(f"⭐ Saved Best Model @ Epoch {epoch} | Dice {best_dice:.4f}")
 
             best_dice = val_dice_epoch
             best_epoch = epoch
@@ -325,8 +379,12 @@ def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
 
         print("Early stop counter:", early_stop_count)
 
-        if early_stop_count > early_stop_patience:
-            print("⛔ EARLY STOPPING TRIGGERED")
+        # if early_stop_count > early_stop_patience:
+        #     print("⛔ EARLY STOPPING TRIGGERED")
+        #     return
+        if early_stop_count >= early_stop_patience:
+            print(f"\n⛔ EARLY STOPPING TRIGGERED at epoch {epoch}")
+            print(f"Best Dice: {best_dice:.4f} at epoch {best_epoch}")
             return
         
         if epoch in args['save_point']:
@@ -337,9 +395,11 @@ def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
                 'model_state_dict': net.module.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_dice': best_dice,
-                'best_epoch': best_epoch
+                'best_epoch': best_epoch,
+                'early_stop_counter': early_stop_count
             },
-            os.path.join(ckpt_path, exp_name, f'last_epoch_{epoch}.pth'))
+            os.path.join(ckpt_path, exp_name, 'best_model.pth'))
+            print(f"⭐ Saved Best Model @ Epoch {epoch} | Dice {best_dice:.4f}")
             net.cuda(device_ids[0])
 
         if epoch >= args['epoch_num']:

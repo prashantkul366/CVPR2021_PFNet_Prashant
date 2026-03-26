@@ -236,10 +236,10 @@ def main():
 
 # def train(net, optimizer):
 # def train(net, optimizer, best_dice, best_epoch, early_stop_patience):
-def train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoch):
+def train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoch, early_stop_count):
     curr_iter = 1
     start_time = time.time()
-    early_stop_count = 0  
+    # early_stop_count = 0  
 
     # for epoch in range(args['last_epoch'] + 1, args['last_epoch'] + 1 + args['epoch_num']):
     for epoch in range(start_epoch, args['epoch_num'] + 1):
@@ -357,9 +357,8 @@ def train(net, optimizer, best_dice, best_epoch, early_stop_patience, start_epoc
         if val_dice_epoch > best_dice:
 
             print(" BEST MODEL UPDATED")
-            print(f"⭐ Saved Best Model @ Epoch {epoch} | Dice {best_dice:.4f}")
-
             best_dice = val_dice_epoch
+            print(f"⭐ Saved Best Model @ Epoch {epoch} | Dice {best_dice:.4f}")
             best_epoch = epoch
             early_stop_count = 0
 

@@ -71,20 +71,31 @@ joint_transform = joint_transforms.Compose([
     joint_transforms.RandomHorizontallyFlip(),
     joint_transforms.Resize((args['scale'], args['scale']))
 ])
-img_transform = transforms.Compose([
-    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
-target_transform = transforms.ToTensor()
+# img_transform = transforms.Compose([
+#     transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+#     transforms.ToTensor(),
+#     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+# ])
+
+# img_transform = transforms.Compose([
+#     transforms.ToTensor()
+# ])
+# target_transform = transforms.ToTensor()
 
 # Prepare Data Set.
-train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
+train_set = ImageFolder(cod_training_root)
 # train_set = ImageFolder(cod_training_root)
 val_set   = ImageFolder(cod_val_root)
 
 print("Train set size:", len(train_set))
 print("Val set size:", len(val_set))
+
+img, mask = train_set[0]
+
+print("\n==== FINAL SANITY ====")
+print("IMG:", img.shape, img.min().item(), img.max().item())
+print("MASK:", mask.shape, torch.unique(mask))
+print("=====================\n")
 
 # print("Train set: {}".format(train_set.__len__()))
 # print("Val set: {}".format(val_set.__len__()))

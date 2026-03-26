@@ -12,6 +12,8 @@ import os
 import os.path
 import torch.utils.data as data
 from PIL import Image
+import numpy as np
+import torch
 
 # def make_dataset(root):
 #     image_path = os.path.join(root, 'image')
@@ -24,7 +26,8 @@ def make_dataset(root):
     image_path = os.path.join(root, 'images')
     mask_path = os.path.join(root, 'masks')
 
-    img_list = [f for f in os.listdir(image_path) if f.endswith('.png')]
+    # img_list = [f for f in os.listdir(image_path) if f.endswith('.png')]
+    img_list = sorted([f for f in os.listdir(image_path) if f.endswith('.npy')])
 
     return [
         (os.path.join(image_path, f),
@@ -42,20 +45,38 @@ class ImageFolder(data.Dataset):
         self.target_transform = target_transform
 
     def __getitem__(self, index):
-        img_path, gt_path = self.imgs[index]
-        img = Image.open(img_path).convert('RGB')
-        target = Image.open(gt_path).convert('L')
-        if self.joint_transform is not None:
-            img, target = self.joint_transform(img, target)
-        if self.transform is not None:
-            img = self.transform(img)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-        
-        target = (target > 0).float()
 
-        return img, target
+        img_path, gt_path = self.imgs[index]   # ⭐ FIX
 
+        img = np.load(img_path).astype(np.float32)   # H W 4
+        mask = np.load(gt_path).astype(np.float32)
+
+        # ---------- FIX SHAPE ----------
+        if img.shape[0] == 4:
+            img = np.transpose(img, (1,2,0))   # C,H,W → H,W,C
+
+        # ---------- CHANNEL NORMALIZATION ----------
+        for c in range(img.shape[2]):
+            img[:,:,c] = (img[:,:,c] - img[:,:,c].mean()) / (img[:,:,c].std() + 1e-6)
+
+        # ---------- TO TENSOR ----------
+        img = torch.from_numpy(img).permute(2,0,1).float()   # 4,H,W
+        mask = torch.from_numpy(mask).unsqueeze(0).float()   # 1,H,W
+
+        # ---------- BINARIZE ----------
+        mask = (mask > 0).float()
+
+        # ---------- RESIZE (VERY IMPORTANT) ----------
+        img = torch.nn.functional.interpolate(
+            img.unsqueeze(0), size=(416,416), mode='bilinear', align_corners=False
+        ).squeeze(0)
+
+        mask = torch.nn.functional.interpolate(
+            mask.unsqueeze(0), size=(416,416), mode='nearest'
+        ).squeeze(0)
+
+        return img, mask
+    
     def __len__(self):
         return len(self.imgs)
 

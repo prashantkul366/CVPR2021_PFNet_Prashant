@@ -13,7 +13,7 @@ import os
 backbone_path = './backbone/resnet/resnet50-19c8e357.pth'
 
 # datasets_root = '../data/NEW'
-datasets_root = '/content/drive/MyDrive/Prashant/Forestry_data/data_new/dataset_visual'
+datasets_root = '/content/drive/MyDrive/Prashant/Forestry_data/data_new/dataset_npy'
 
 # cod_training_root = os.path.join(datasets_root, 'train')
 cod_training_root = os.path.join(datasets_root, 'train')

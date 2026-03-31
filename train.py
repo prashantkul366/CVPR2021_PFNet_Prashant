@@ -81,10 +81,19 @@ writer = SummaryWriter(log_dir=vis_path, comment=exp_name)
 
 # Prepare Data Set.
 # train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
+
+BASE = "/content/drive/MyDrive/Prashant/Forestry_data/data_new/dataset_small_bal"
+
+SEED = 42
+TRAIN_IMGS  = f"{BASE}/train/images"
+TRAIN_MASKS = f"{BASE}/train/masks"
+VAL_IMGS    = f"{BASE}/val/images"
+VAL_MASKS   = f"{BASE}/val/masks"
+
 train_set = HillshadeDataset(
-    img_dir="PATH_TO_TRAIN_IMAGES",
-    mask_dir="PATH_TO_TRAIN_MASKS",
-    transform=get_transforms("train"),
+    img_dir=TRAIN_IMGS,
+    mask_dir=TRAIN_MASKS,
+    transform=get_transforms("train", patch_size=256),
     road_biased=True,
     road_ratio=0.7,
     road_min_pixels=30
@@ -100,8 +109,8 @@ train_loader = DataLoader(
 )
 
 val_set = HillshadeDataset(
-    img_dir="PATH_TO_VAL_IMAGES",
-    mask_dir="PATH_TO_VAL_MASKS",
+    img_dir=VAL_IMGS,
+    mask_dir=VAL_MASKS,
     transform=get_transforms("val"),
     road_biased=False
 )

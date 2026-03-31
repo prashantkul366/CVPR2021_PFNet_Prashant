@@ -123,10 +123,10 @@ from albumentations.pytorch import ToTensorV2
 #         ])
 
 
-def get_transforms(phase):
+def get_transforms(phase, patch_size):
     if phase == "train":
         return A.Compose([
-            A.RandomCrop(CFG.PATCH_SIZE, CFG.PATCH_SIZE),
+            A.RandomCrop(patch_size, patch_size),
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),

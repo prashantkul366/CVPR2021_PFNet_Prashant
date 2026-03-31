@@ -132,12 +132,10 @@ def get_transforms(phase, patch_size):
             A.RandomRotate90(p=0.5),
             A.GaussNoise(p=0.3),
             A.RandomBrightnessContrast(p=0.3),
-            A.Normalize(mean=[0.5]*4, std=[0.5]*4),
             ToTensorV2(transpose_mask=False),
         ])
     else:
         return A.Compose([
             A.CenterCrop(patch_size, patch_size),
-            A.Normalize(mean=[0.5]*4, std=[0.5]*4),
             ToTensorV2(transpose_mask=False),
         ])

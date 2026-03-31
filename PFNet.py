@@ -228,7 +228,30 @@ class PFNet(nn.Module):
         # params
 
         # backbone
+        # resnet50 = resnet.resnet50(backbone_path)
+        # self.layer0 = nn.Sequential(resnet50.conv1, resnet50.bn1, resnet50.relu)
         resnet50 = resnet.resnet50(backbone_path)
+
+        # ORIGINAL conv
+        old_conv = resnet50.conv1  # [64, 3, 7, 7]
+
+        # NEW conv (4 channels)
+        new_conv = nn.Conv2d(
+            in_channels=4,
+            out_channels=64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
+
+        # 🔥 Weight initialization trick (IMPORTANT)
+        with torch.no_grad():
+            new_conv.weight[:, :3, :, :] = old_conv.weight
+            new_conv.weight[:, 3:4, :, :] = old_conv.weight[:, :1, :, :]
+
+        resnet50.conv1 = new_conv
+
         self.layer0 = nn.Sequential(resnet50.conv1, resnet50.bn1, resnet50.relu)
         self.layer1 = nn.Sequential(resnet50.maxpool, resnet50.layer1)
         self.layer2 = resnet50.layer2

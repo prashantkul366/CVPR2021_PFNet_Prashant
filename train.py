@@ -18,16 +18,19 @@ from torch import optim
 from torch.autograd import Variable
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
-from torchvision import transforms
+# from torchvision import transforms
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-import joint_transforms
+# import joint_transforms
 from config import cod_training_root
 from config import backbone_path
-from datasets import ImageFolder
+# from datasets import ImageFolder
 from misc import AvgMeter, check_mkdir
 from PFNet import PFNet
+from datasets import HillshadeDataset
+from datasets import get_transforms
+from torch.utils.data import DataLoader
 
 import loss
 
@@ -40,7 +43,7 @@ ckpt_path = './ckpt'
 exp_name = 'PFNet'
 
 args = {
-    'epoch_num': 45,
+    'epoch_num': 200,
     'train_batch_size': 16,
     'last_epoch': 0,
     'lr': 1e-3,
@@ -65,22 +68,51 @@ log_path = os.path.join(ckpt_path, exp_name, str(datetime.datetime.now()) + '.tx
 writer = SummaryWriter(log_dir=vis_path, comment=exp_name)
 
 # Transform Data.
-joint_transform = joint_transforms.Compose([
-    joint_transforms.RandomHorizontallyFlip(),
-    joint_transforms.Resize((args['scale'], args['scale']))
-])
-img_transform = transforms.Compose([
-    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
-target_transform = transforms.ToTensor()
+# joint_transform = joint_transforms.Compose([
+#     joint_transforms.RandomHorizontallyFlip(),
+#     joint_transforms.Resize((args['scale'], args['scale']))
+# ])
+# img_transform = transforms.Compose([
+#     transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+#     transforms.ToTensor(),
+#     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+# ])
+# target_transform = transforms.ToTensor()
 
 # Prepare Data Set.
-train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
+# train_set = ImageFolder(cod_training_root, joint_transform, img_transform, target_transform)
+train_set = HillshadeDataset(
+    img_dir="PATH_TO_TRAIN_IMAGES",
+    mask_dir="PATH_TO_TRAIN_MASKS",
+    transform=get_transforms("train"),
+    road_biased=True,
+    road_ratio=0.7,
+    road_min_pixels=30
+)
 print("Train set: {}".format(train_set.__len__()))
-train_loader = DataLoader(train_set, batch_size=args['train_batch_size'], num_workers=16, shuffle=True)
+# train_loader = DataLoader(train_set, batch_size=args['train_batch_size'], num_workers=16, shuffle=True)
+train_loader = DataLoader(
+    train_set,
+    batch_size=args['train_batch_size'],
+    shuffle=True,
+    num_workers=4,
+    pin_memory=True
+)
 
+val_set = HillshadeDataset(
+    img_dir="PATH_TO_VAL_IMAGES",
+    mask_dir="PATH_TO_VAL_MASKS",
+    transform=get_transforms("val"),
+    road_biased=False
+)
+
+val_loader = DataLoader(
+    val_set,
+    batch_size=args['train_batch_size'],
+    shuffle=False,
+    num_workers=4,
+    pin_memory=True
+)
 total_epoch = args['epoch_num'] * len(train_loader)
 
 # loss function
@@ -132,9 +164,64 @@ def main():
     train(net, optimizer)
     writer.close()
 
+def compute_metrics(pred, target):
+    pred = (pred > 0.5).float()
+
+    tp = (pred * target).sum()
+    fp = (pred * (1 - target)).sum()
+    fn = ((1 - pred) * target).sum()
+    tn = ((1 - pred) * (1 - target)).sum()
+
+    dice = (2 * tp) / (2 * tp + fp + fn + 1e-6)
+    iou = tp / (tp + fp + fn + 1e-6)
+    precision = tp / (tp + fp + 1e-6)
+    recall = tp / (tp + fn + 1e-6)
+    specificity = tn / (tn + fp + 1e-6)
+    accuracy = (tp + tn) / (tp + tn + fp + fn + 1e-6)
+
+    return {
+        "dice": dice.item(),
+        "iou": iou.item(),
+        "precision": precision.item(),
+        "recall": recall.item(),
+        "specificity": specificity.item(),
+        "accuracy": accuracy.item(),
+    }
+
+@torch.no_grad()
+def validate(net):
+    net.eval()
+
+    total_loss = 0
+    all_preds, all_targets = [], []
+
+    for inputs, labels in val_loader:
+        inputs = inputs.cuda(device_ids[0])
+        labels = labels.cuda(device_ids[0])
+
+        predict_1, predict_2, predict_3, predict_4 = net(inputs)
+
+        loss = bce_iou_loss(predict_1, labels)
+        total_loss += loss.item()
+
+        preds = torch.sigmoid(predict_1)
+        all_preds.append(preds.cpu())
+        all_targets.append(labels.cpu())
+
+    preds = torch.cat(all_preds)
+    targets = torch.cat(all_targets)
+
+    metrics = compute_metrics(preds, targets)
+
+    return total_loss / len(val_loader), metrics
+
 def train(net, optimizer):
     curr_iter = 1
     start_time = time.time()
+
+    best_dice = 0.0
+    no_improve = 0
+    PATIENCE = 50
 
     for epoch in range(args['last_epoch'] + 1, args['last_epoch'] + 1 + args['epoch_num']):
         loss_record, loss_1_record, loss_2_record, loss_3_record, loss_4_record = AvgMeter(), AvgMeter(), AvgMeter(), AvgMeter(), AvgMeter()
@@ -187,10 +274,40 @@ def train(net, optimizer):
 
             curr_iter += 1
 
-        if epoch in args['save_point']:
-            net.cpu()
-            torch.save(net.module.state_dict(), os.path.join(ckpt_path, exp_name, '%d.pth' % epoch))
-            net.cuda(device_ids[0])
+        val_loss, val_metrics = validate(net)
+        net.train()
+
+        print(f"\nVAL → Loss: {val_loss:.4f}")
+        print(
+            f"dice: {val_metrics['dice']:.4f} | "
+            f"iou: {val_metrics['iou']:.4f} | "
+            f"precision: {val_metrics['precision']:.4f} | "
+            f"recall: {val_metrics['recall']:.4f} | "
+            f"specificity: {val_metrics['specificity']:.4f} | "
+            f"accuracy: {val_metrics['accuracy']:.4f}"
+        )
+
+        if val_metrics["dice"] > best_dice:
+            best_dice = val_metrics["dice"]
+            no_improve = 0
+
+            torch.save(net.module.state_dict(),
+                    os.path.join(ckpt_path, exp_name, 'best_model.pth'))
+
+            print("🔥 New best model saved!")
+
+        else:
+            no_improve += 1
+            print(f"No improvement: {no_improve}/{PATIENCE}")
+
+            if no_improve >= PATIENCE:
+                print("\n⛔ EARLY STOPPING TRIGGERED")
+                print(f"Best Dice: {best_dice:.4f}")
+                return
+        # if epoch in args['save_point']:
+        #     net.cpu()
+        #     torch.save(net.module.state_dict(), os.path.join(ckpt_path, exp_name, '%d.pth' % epoch))
+        #     net.cuda(device_ids[0])
 
         if epoch >= args['epoch_num']:
             net.cpu()

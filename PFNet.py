@@ -219,26 +219,6 @@ class Focus(nn.Module):
 
         return refine2, output_map
 
-
-class InputAdapter(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.proj = nn.Sequential(
-            nn.Conv2d(4, 32, 3, padding=1, bias=False),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(32, 16, 3, padding=1, bias=False),
-            nn.BatchNorm2d(16),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(16, 3, 1, bias=False)
-        )
-
-    def forward(self, x):
-        return self.proj(x)
-    
-
 ###################################################################
 # ########################## NETWORK ##############################
 ###################################################################
@@ -247,7 +227,6 @@ class PFNet(nn.Module):
         super(PFNet, self).__init__()
         # params
 
-        self.input_adapter = InputAdapter()
         # backbone
         resnet50 = resnet.resnet50(backbone_path)
         self.layer0 = nn.Sequential(resnet50.conv1, resnet50.bn1, resnet50.relu)
@@ -276,7 +255,6 @@ class PFNet(nn.Module):
 
     def forward(self, x):
         # x: [batch_size, channel=3, h, w]
-        x = self.input_adapter(x)
         layer0 = self.layer0(x)  # [-1, 64, h/2, w/2]
         layer1 = self.layer1(layer0)  # [-1, 256, h/4, w/4]
         layer2 = self.layer2(layer1)  # [-1, 512, h/8, w/8]

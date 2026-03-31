@@ -137,7 +137,7 @@ def get_transforms(phase, patch_size):
         ])
     else:
         return A.Compose([
-            A.CenterCrop(CFG.PATCH_SIZE, CFG.PATCH_SIZE),
+            A.CenterCrop(patch_size, patch_size),
             A.Normalize(mean=[0.5]*4, std=[0.5]*4),
             ToTensorV2(transpose_mask=False),
         ])

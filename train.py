@@ -111,7 +111,7 @@ train_loader = DataLoader(
 val_set = HillshadeDataset(
     img_dir=VAL_IMGS,
     mask_dir=VAL_MASKS,
-    transform=get_transforms("val"),
+    transform=get_transforms("val", patch_size=256),
     road_biased=False
 )
 

@@ -37,7 +37,8 @@ import loss
 cudnn.benchmark = True
 
 torch.manual_seed(2021)
-device_ids = [1]
+# device_ids = [1]
+device_ids = [0]
 
 ckpt_path = './ckpt'
 exp_name = 'PFNet'
